@@ -1,0 +1,12 @@
+{
+  "bot_token": "BOT_TOKEN_HERE",
+  "pics_count": 1,
+  "posting_hours": [
+    1, 2, 3
+  ],
+  "channel": -12345,
+  "channel_string": "Channel string",
+  "allowed_users": [
+    12345, 67890
+  ]
+}
