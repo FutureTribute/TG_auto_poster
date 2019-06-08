@@ -248,7 +248,15 @@ def poster():
             raise IndexError
         pics = [DATA.pop(0) for _ in range(PICS_COUNT)]
         for pic in pics:
-            bot.send_photo(CHANNEL, photo=pic["id"], caption=pic["caption"]+"\n"+CHANNEL_USERNAME)
+            caption = pic["caption"]
+            split = caption.split(", ")
+            caption = ""
+            if len(split) > 1:
+                caption += split[0] + ", "
+            split = split[-1].split("\nby ")
+            caption += "\nby ".join(["#{}".format(i.replace(" ", "_")) for i in split])
+            # bot.send_photo(CHANNEL, photo=pic["id"], caption=pic["caption"]+"\n"+CHANNEL_USERNAME)
+            bot.send_photo(CHANNEL, photo=pic["id"], caption=caption+"\n"+CHANNEL_USERNAME)
             time.sleep(1)
             bot.send_document(CHANNEL, pic["doc_id"])
             time.sleep(1)
