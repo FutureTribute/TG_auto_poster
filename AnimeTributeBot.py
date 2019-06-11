@@ -2,17 +2,23 @@ import telebot
 import time
 import pytz
 import logging
-
+from datetime import datetime
+import concurrent.futures
+from socket import timeout
+from urllib3.exceptions import HTTPError
+from requests.exceptions import RequestException
 try:
     import ujson as json
 except ImportError:
     import json
 
-from datetime import datetime
-import concurrent.futures
-
 logger = telebot.logger
-telebot.logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler("log.log")
+fh.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s')
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 with open("config.json", "r") as file:
     config = json.load(file)
@@ -256,9 +262,21 @@ def poster():
             split = split[-1].split("\nby ")
             caption += "\nby ".join(["#{}".format(i.replace(" ", "_")) for i in split])
             # bot.send_photo(CHANNEL, photo=pic["id"], caption=pic["caption"]+"\n"+CHANNEL_USERNAME)
-            bot.send_photo(CHANNEL, photo=pic["id"], caption=caption+"\n"+CHANNEL_USERNAME)
+            while True:
+                try:
+                    bot.send_photo(CHANNEL, photo=pic["id"], caption=caption+"\n"+CHANNEL_USERNAME)
+                    break
+                except (timeout, HTTPError, RequestException):
+                    logger.error("Posting failed because of Telegram Servers error")
+                    time.sleep(60)
             time.sleep(1)
-            bot.send_document(CHANNEL, pic["doc_id"])
+            while True:
+                try:
+                    bot.send_document(CHANNEL, pic["doc_id"])
+                    break
+                except (timeout, HTTPError, RequestException):
+                    logger.error("Posting failed because of Telegram Servers error")
+                    time.sleep(60)
             time.sleep(1)
         with open("data.json", "w") as f:
             json.dump(DATA, f)
