@@ -7,6 +7,8 @@ import concurrent.futures
 from socket import timeout
 from urllib3.exceptions import HTTPError
 from requests.exceptions import RequestException
+import random
+
 try:
     import ujson as json
 except ImportError:
@@ -50,17 +52,6 @@ bot = telebot.TeleBot(BOT_TOKEN, skip_pending=True)
 # bot.load_next_step_handlers()
 
 
-def send_pics():
-    while True:
-        now = datetime.now(TZ).time()
-        if SWITCHER and now.hour in POSTING_HOURS:
-            print("Time:", now)
-            poster()
-            time.sleep(5400)  # experimental value
-        else:
-            time.sleep(60)  # experimental value
-
-
 @bot.message_handler(content_types=["photo"])
 def store_pic(message):
     if checker(message.chat.id):
@@ -94,7 +85,7 @@ def store_doc(message):
         bot.register_next_step_handler(msg, store_doc)
 
 
-@bot.message_handler(commands=["all_posts"])  # NEED REWORK
+@bot.message_handler(commands=["all_posts"])
 def all_posts(message):
     if checker(message.chat.id):
         return
@@ -208,8 +199,9 @@ def force_post(message):
 def force_post_step(message):
     if message.text and message.text == "Yes":
         poster()
+        bot.send_message(message.chat.id, "Success.")
     else:
-        bot.send_message(message.chat.id, "Post deletion canceled.")
+        bot.send_message(message.chat.id, "Force post canceled.")
 
 
 @bot.message_handler(commands=["switcher"])
@@ -243,6 +235,76 @@ def posting_rules(message):
                      format(str(PICS_COUNT), POSTING_HOURS))
 
 
+@bot.message_handler(commands=["shuffle"])
+def shuffle_data(message):
+    if checker(message.chat.id):
+        return
+    args = message.text.split()
+    temp = len(DATA)
+    index_from = 0
+    index_to = temp
+    times = 1
+    try:
+        if len(args) > 1:
+            index_from = int(args[1])
+        if len(args) > 2:
+            index_to = int(args[2])
+        if len(args) > 3:
+            times = int(args[3])
+        if index_from > temp or index_from < 0 or \
+                index_to > temp or index_to < 0 or \
+                index_from > index_to or \
+                times < 0 or times > 5:
+            raise ValueError
+        msg = bot.send_message(message.chat.id, "Are you sure you want to shuffle list? [Yes]\n"
+                                                "〔Shuffle parameters: from {} index to {} index {} times〕\n"
+                                                "(be sure that bot haven't made posts in channel while you was here, "
+                                                "making decision)".format(index_from, index_to, times))
+        bot.register_next_step_handler(msg, shuffle_step, index_from, index_to, times)
+    except ValueError:
+        bot.send_message(message.chat.id, "Incorrect usage, try again.")
+
+
+def shuffle_step(message, *args):
+    if message.text and not message.text.startswith("/cancel"):
+        global DATA
+        temp1, temp2, temp3 = DATA[:args[0]], DATA[args[0]: args[1]], DATA[args[1]:]
+        for _ in range(args[2]):
+            random.shuffle(temp2)
+        temp1.extend(temp2)
+        temp1.extend(temp3)
+        DATA = temp1
+        with open("data.json", "w") as f:
+            json.dump(DATA, f)
+        bot.send_message(message.chat.id, "Success.")
+    else:
+        bot.send_message(message.chat.id, "Shuffling canceled.")
+
+
+@bot.message_handler(commands=["reload_json"])
+def reload_json(message):
+    if checker(message.chat.id):
+        return
+    msg = bot.send_message(message.chat.id, "Are you sure that you want to reload json? [Yes].\n"
+                                            "(be sure that bot haven't made posts in channel while you was here, "
+                                            "making decision)")
+    bot.register_next_step_handler(msg, reload_json_step)
+
+
+def reload_json_step(message):
+    if message.text and message.text == "Yes":
+        try:
+            global DATA
+            with open("data.json", "r") as file_r:
+                DATA = json.load(file_r)
+        except OSError:
+            bot.send_message(message.chat.id, "JSON file not found. Reload failed.")
+            return
+        bot.send_message(message.chat.id, "Success.")
+    else:
+        bot.send_message(message.chat.id, "Force post canceled.")
+
+
 @bot.message_handler(commands=["ping"])
 def ping(message):
     bot.send_message(message.chat.id, "Pong.")
@@ -264,7 +326,7 @@ def poster():
             # bot.send_photo(CHANNEL, photo=pic["id"], caption=pic["caption"]+"\n"+CHANNEL_USERNAME)
             while True:
                 try:
-                    bot.send_photo(CHANNEL, photo=pic["id"], caption=caption+"\n"+CHANNEL_USERNAME)
+                    bot.send_photo(CHANNEL, photo=pic["id"], caption=caption + "\n" + CHANNEL_USERNAME)
                     break
                 except (timeout, HTTPError, RequestException):
                     logger.error("Posting failed because of Telegram Servers error")
@@ -290,6 +352,17 @@ def checker(cid):
         bot.send_message(cid, "You're not allowed to do this. Go away.")
         return True
     return False
+
+
+def send_pics():
+    while True:
+        now = datetime.now(TZ).time()
+        if SWITCHER and now.hour in POSTING_HOURS:
+            logger.info("Time to post")
+            poster()
+            time.sleep(5400)  # experimental value
+        else:
+            time.sleep(60)  # experimental value
 
 
 def bot_runner():

@@ -1,3 +1,9 @@
+## [1.1] - 2019-07-03
+### Added
+- Shuffle data command
+- Reload data command
+- Messages from bot to confirm that operation succeeded
+
 ## [1.02] - 2019-06-12
 ### Added
 - CHANGELOG.md
